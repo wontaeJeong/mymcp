@@ -1,0 +1,239 @@
+{
+  "realm": "mcp-demo",
+  "enabled": true,
+  "displayName": "MCP OAuth Demo",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "groups": [
+    {
+      "name": "admin"
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "mcp:tools:read",
+        "description": "May list MCP tools"
+      },
+      {
+        "name": "mcp:tools:execute",
+        "description": "May call MCP tools"
+      },
+      {
+        "name": "mcp:admin",
+        "description": "May call admin MCP tools"
+      }
+    ]
+  },
+  "clientScopes": [
+    {
+      "name": "mcp:tools:read",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "mcp:tools:execute",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "mcp:admin",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "mcp-resource",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "mcp-demo-resource-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "mcp-demo-resource",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "opencode-mcp-demo",
+      "name": "opencode remote MCP OAuth demo",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "pkceCodeChallengeMethod": "S256",
+      "redirectUris": [
+        "http://127.0.0.1:*/*",
+        "http://localhost:*/*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles",
+        "mcp-resource"
+      ],
+      "optionalClientScopes": [
+        "mcp:tools:read",
+        "mcp:tools:execute",
+        "mcp:admin"
+      ]
+    },
+    {
+      "clientId": "mcp-demo-cli",
+      "name": "Local curl test client",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3000/callback",
+        "http://127.0.0.1:*/*",
+        "http://localhost:*/*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles",
+        "mcp-resource"
+      ],
+      "optionalClientScopes": [
+        "mcp:tools:read",
+        "mcp:tools:execute",
+        "mcp:admin"
+      ]
+    },
+    {
+      "clientId": "mcp-demo-test",
+      "name": "Local automated test client",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:3000/callback"
+      ],
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles",
+        "mcp-resource"
+      ],
+      "optionalClientScopes": [
+        "mcp:tools:read",
+        "mcp:tools:execute",
+        "mcp:admin"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@example.com",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Demo",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "alice",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "mcp:tools:read",
+        "mcp:tools:execute"
+      ]
+    },
+    {
+      "username": "admin-user",
+      "enabled": true,
+      "email": "admin@example.com",
+      "emailVerified": true,
+      "firstName": "Admin",
+      "lastName": "Demo",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin-user",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "mcp:tools:read",
+        "mcp:tools:execute",
+        "mcp:admin"
+      ],
+      "groups": [
+        "/admin"
+      ]
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "internal-oidc",
+      "providerId": "oidc",
+      "enabled": false,
+      "trustEmail": true,
+      "storeToken": false,
+      "addReadTokenRoleOnCreate": false,
+      "authenticateByDefault": false,
+      "linkOnly": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "${INTERNAL_OIDC_CLIENT_ID}",
+        "clientSecret": "${INTERNAL_OIDC_CLIENT_SECRET}",
+        "issuer": "${INTERNAL_OIDC_ISSUER}",
+        "authorizationUrl": "${INTERNAL_OIDC_AUTHORIZATION_URL}",
+        "tokenUrl": "${INTERNAL_OIDC_TOKEN_URL}",
+        "userInfoUrl": "${INTERNAL_OIDC_USERINFO_URL}",
+        "jwksUrl": "${INTERNAL_OIDC_JWKS_URL}",
+        "useJwksUrl": "true",
+        "validateSignature": "true"
+      }
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2.5
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      INTERNAL_OIDC_CLIENT_ID: ${INTERNAL_OIDC_CLIENT_ID:-}
+      INTERNAL_OIDC_CLIENT_SECRET: ${INTERNAL_OIDC_CLIENT_SECRET:-}
+      INTERNAL_OIDC_ISSUER: ${INTERNAL_OIDC_ISSUER:-https://oidc.internal.example.com}
+      INTERNAL_OIDC_AUTHORIZATION_URL: ${INTERNAL_OIDC_AUTHORIZATION_URL:-https://oidc.internal.example.com/oauth2/authorize}
+      INTERNAL_OIDC_TOKEN_URL: ${INTERNAL_OIDC_TOKEN_URL:-https://oidc.internal.example.com/oauth2/token}
+      INTERNAL_OIDC_USERINFO_URL: ${INTERNAL_OIDC_USERINFO_URL:-https://oidc.internal.example.com/oauth2/userinfo}
+      INTERNAL_OIDC_JWKS_URL: ${INTERNAL_OIDC_JWKS_URL:-https://oidc.internal.example.com/.well-known/jwks.json}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
