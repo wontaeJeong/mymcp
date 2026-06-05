@@ -1,6 +1,6 @@
 # Remote MCP OAuth demo: opencode → MCP resource server → Keycloak broker → internal OIDC
 
-This repository is a runnable **Bun + TypeScript** example of a remote MCP server protected by OAuth 2.0.
+This repository is a runnable **Go** example of a remote MCP server protected by OAuth 2.0.
 
 The intended production shape is an internal identity platform, not a public SaaS IdP:
 
@@ -24,19 +24,19 @@ For the local demo, upstream OIDC credentials are optional. Keycloak imports loc
 
 ## What is included
 
-- Bun-based TypeScript server with no npm runtime dependencies.
+- Go server that uses only the standard library at runtime.
 - Minimal HTTP JSON-RPC MCP endpoint at `POST /mcp`.
 - OAuth Protected Resource Metadata at:
   - `GET /.well-known/oauth-protected-resource`
   - `GET /.well-known/oauth-protected-resource/mcp`
 - Keycloak in Docker Compose with realm import.
-- JWT validation using WebCrypto and Keycloak JWKS.
+- JWT validation using Go crypto libraries and Keycloak JWKS.
 - Validation of `iss`, `aud`, `exp`, and tool scopes.
 - Tool authorization by scope/group:
   - `tools/list` requires `mcp:tools:read`.
   - `tools/call` requires `mcp:tools:execute`.
   - `admin_status` additionally requires `mcp:admin` scope or `admin` group.
-- Bun unit tests for metadata, authentication, JWT rejection, and policy enforcement.
+- Go unit tests for metadata, authentication, JWT rejection, and policy enforcement.
 
 ## Environment variables
 
@@ -77,8 +77,8 @@ The variable names are stable and intentionally descriptive; only the grouping i
 ```bash
 cp .env.example .env
 docker compose up -d
-bun install
-bun run dev
+go mod download
+go run .
 ```
 
 Equivalent Make targets:
@@ -307,6 +307,6 @@ If the internal IdP enforces corporate domain, department, device posture, or ne
 ## Tests
 
 ```bash
-bun test
-bun run build
+go test ./...
+go build ./...
 ```
