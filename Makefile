@@ -7,16 +7,16 @@ down:
 	docker compose down
 
 install:
-	bun install
+	go mod download
 
 dev:
-	bun run dev
+	go run .
 
 build:
-	bun run build
+	go build ./...
 
 test:
-	bun test
+	go test ./...
 
 token-alice:
 	curl -s -X POST http://localhost:8080/realms/mcp-demo/protocol/openid-connect/token \
