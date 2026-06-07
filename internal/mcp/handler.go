@@ -6,7 +6,6 @@ import (
 
 	"mymcp/internal/auth"
 	"mymcp/internal/policy"
-	"mymcp/internal/tools"
 )
 
 func HandleJSONRPC(rpc JSONRPCRequest, authContext auth.AuthContext) Response {
@@ -23,7 +22,7 @@ func HandleJSONRPC(rpc JSONRPCRequest, authContext auth.AuthContext) Response {
 		if !policy.CanListTools(authContext.Scopes) {
 			return Response{Status: http.StatusForbidden, Body: RPCError(rpc.ID, -32001, "tools/list requires mcp:tools:read scope")}
 		}
-		return Response{Status: http.StatusOK, Body: rpcResult(rpc.ID, map[string]any{"tools": tools.List()})}
+		return Response{Status: http.StatusOK, Body: rpcResult(rpc.ID, map[string]any{"tools": listTools()})}
 	case "tools/call":
 		if !policy.CanCallTools(authContext.Scopes) {
 			return Response{Status: http.StatusForbidden, Body: RPCError(rpc.ID, -32001, "tools/call requires mcp:tools:execute scope")}
@@ -36,11 +35,11 @@ func HandleJSONRPC(rpc JSONRPCRequest, authContext auth.AuthContext) Response {
 		if name == "" {
 			return Response{Status: http.StatusBadRequest, Body: RPCError(rpc.ID, -32602, "tools/call requires params.name")}
 		}
-		value, err := tools.Call(name, args, authContext)
+		value, err := callTool(name, args, authContext)
 		if err != nil {
 			status := http.StatusBadRequest
 			code := -32602
-			var forbidden tools.ForbiddenError
+			var forbidden forbiddenError
 			if errors.As(err, &forbidden) {
 				status = http.StatusForbidden
 				code = -32001

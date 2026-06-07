@@ -1,4 +1,4 @@
-package tools
+package mcp
 
 import (
 	"errors"
@@ -7,13 +7,13 @@ import (
 	"mymcp/internal/policy"
 )
 
-type Definition struct {
+type ToolDefinition struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
 	InputSchema map[string]any `json:"inputSchema"`
 }
 
-var registry = []Definition{
+var toolRegistry = []ToolDefinition{
 	{
 		Name:        "whoami",
 		Description: "Return the authenticated Keycloak user attached to this MCP request.",
@@ -36,15 +36,15 @@ var registry = []Definition{
 	},
 }
 
-type ForbiddenError struct{ message string }
+type forbiddenError struct{ message string }
 
-func (e ForbiddenError) Error() string { return e.message }
+func (e forbiddenError) Error() string { return e.message }
 
-func List() []Definition {
-	return append([]Definition(nil), registry...)
+func listTools() []ToolDefinition {
+	return append([]ToolDefinition(nil), toolRegistry...)
 }
 
-func Call(name string, args any, authContext auth.AuthContext) (any, error) {
+func callTool(name string, args any, authContext auth.AuthContext) (any, error) {
 	switch name {
 	case "whoami":
 		return map[string]any{
@@ -63,7 +63,7 @@ func Call(name string, args any, authContext auth.AuthContext) (any, error) {
 		return map[string]any{"message": message}, nil
 	case "admin_status":
 		if !policy.CanCallAdminTool(authContext.Scopes, authContext.Groups) {
-			return nil, ForbiddenError{"admin_status requires admin group or mcp:admin scope"}
+			return nil, forbiddenError{"admin_status requires admin group or mcp:admin scope"}
 		}
 		return map[string]any{"status": "ok", "admin": true}, nil
 	default:
