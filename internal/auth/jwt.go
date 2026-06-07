@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"crypto"
@@ -7,35 +7,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"strings"
 	"time"
+
+	"mymcp/internal/config"
+	"mymcp/internal/policy"
 )
-
-type AuthContext struct {
-	Subject           string
-	Email             string
-	PreferredUsername string
-	Groups            []string
-	Scopes            []string
-	Claims            map[string]any
-}
-
-type AuthResult struct {
-	OK      bool
-	Auth    AuthContext
-	Status  int
-	Headers map[string]string
-	Body    map[string]string
-}
-
-func bearerTokenFromHeader(header string) string {
-	parts := strings.Fields(strings.TrimSpace(header))
-	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
-		return parts[1]
-	}
-	return ""
-}
 
 func decodeBase64URLJSON(segment string) (map[string]any, error) {
 	decoded, err := base64.RawURLEncoding.DecodeString(segment)
@@ -63,7 +40,7 @@ func audienceMatches(aud any, expected string) bool {
 	return false
 }
 
-func verifyAccessToken(token string, config AppConfig, resolveJWK JWKResolver) (AuthContext, error) {
+func VerifyAccessToken(token string, cfg config.Config, resolveJWK JWKResolver) (AuthContext, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
 		return AuthContext{}, errors.New("JWT must have three parts")
@@ -79,10 +56,10 @@ func verifyAccessToken(token string, config AppConfig, resolveJWK JWKResolver) (
 	if alg, _ := header["alg"].(string); alg != "RS256" {
 		return AuthContext{}, errors.New("only RS256 access tokens are accepted")
 	}
-	if iss, _ := payload["iss"].(string); iss != config.Issuer {
+	if iss, _ := payload["iss"].(string); iss != cfg.Issuer {
 		return AuthContext{}, errors.New("invalid issuer")
 	}
-	if !audienceMatches(payload["aud"], config.Audience) {
+	if !audienceMatches(payload["aud"], cfg.Audience) {
 		return AuthContext{}, errors.New("invalid audience")
 	}
 	exp, ok := payload["exp"].(float64)
@@ -110,24 +87,8 @@ func verifyAccessToken(token string, config AppConfig, resolveJWK JWKResolver) (
 		Subject:           subject,
 		Email:             email,
 		PreferredUsername: preferredUsername,
-		Groups:            groupsFromClaim(payload["groups"]),
-		Scopes:            scopesFromClaim(payload["scope"]),
+		Groups:            policy.GroupsFromClaim(payload["groups"]),
+		Scopes:            policy.ScopesFromClaim(payload["scope"]),
 		Claims:            payload,
 	}, nil
-}
-
-func authenticateRequest(r *http.Request, config AppConfig, resolveJWK JWKResolver) AuthResult {
-	if resolveJWK == nil {
-		resolveJWK = createRemoteJwksResolver(config.JWKSURI)
-	}
-	challenge := wwwAuthenticateHeader(config)
-	token := bearerTokenFromHeader(r.Header.Get("Authorization"))
-	if token == "" {
-		return AuthResult{OK: false, Status: http.StatusUnauthorized, Headers: map[string]string{"WWW-Authenticate": challenge}, Body: map[string]string{"error": "missing_bearer_token"}}
-	}
-	auth, err := verifyAccessToken(token, config, resolveJWK)
-	if err != nil {
-		return AuthResult{OK: false, Status: http.StatusUnauthorized, Headers: map[string]string{"WWW-Authenticate": challenge}, Body: map[string]string{"error": "invalid_token"}}
-	}
-	return AuthResult{OK: true, Auth: auth}
 }
