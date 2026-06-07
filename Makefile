@@ -1,4 +1,4 @@
-.PHONY: up down dev build test install token-alice token-admin
+.PHONY: up down dev build test install docker-build docker-up docker-down token-alice token-admin
 
 up:
 	docker compose up -d
@@ -17,6 +17,15 @@ build:
 
 test:
 	go test ./...
+
+docker-build:
+	docker build -t mymcp .
+
+docker-up:
+	docker compose --profile app up -d --build
+
+docker-down:
+	docker compose --profile app down
 
 token-alice:
 	curl -s -X POST http://localhost:8080/realms/mcp-demo/protocol/openid-connect/token \
