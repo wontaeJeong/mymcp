@@ -1,14 +1,19 @@
-package main
+package tools
 
-import "errors"
+import (
+	"errors"
 
-type ToolDefinition struct {
+	"mymcp/internal/auth"
+	"mymcp/internal/policy"
+)
+
+type Definition struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
 	InputSchema map[string]any `json:"inputSchema"`
 }
 
-var tools = []ToolDefinition{
+var registry = []Definition{
 	{
 		Name:        "whoami",
 		Description: "Return the authenticated Keycloak user attached to this MCP request.",
@@ -31,19 +36,23 @@ var tools = []ToolDefinition{
 	},
 }
 
-type forbiddenToolError struct{ message string }
+type ForbiddenError struct{ message string }
 
-func (e forbiddenToolError) Error() string { return e.message }
+func (e ForbiddenError) Error() string { return e.message }
 
-func callTool(name string, args any, auth AuthContext) (any, error) {
+func List() []Definition {
+	return append([]Definition(nil), registry...)
+}
+
+func Call(name string, args any, authContext auth.AuthContext) (any, error) {
 	switch name {
 	case "whoami":
 		return map[string]any{
-			"subject":            auth.Subject,
-			"email":              auth.Email,
-			"preferred_username": auth.PreferredUsername,
-			"groups":             auth.Groups,
-			"scopes":             auth.Scopes,
+			"subject":            authContext.Subject,
+			"email":              authContext.Email,
+			"preferred_username": authContext.PreferredUsername,
+			"groups":             authContext.Groups,
+			"scopes":             authContext.Scopes,
 		}, nil
 	case "echo":
 		arguments, _ := args.(map[string]any)
@@ -53,8 +62,8 @@ func callTool(name string, args any, auth AuthContext) (any, error) {
 		}
 		return map[string]any{"message": message}, nil
 	case "admin_status":
-		if !canCallAdminTool(auth) {
-			return nil, forbiddenToolError{"admin_status requires admin group or mcp:admin scope"}
+		if !policy.CanCallAdminTool(authContext.Scopes, authContext.Groups) {
+			return nil, ForbiddenError{"admin_status requires admin group or mcp:admin scope"}
 		}
 		return map[string]any{"status": "ok", "admin": true}, nil
 	default:
