@@ -3,7 +3,7 @@ services:
     build: .
     profiles: ["app"]
     environment:
-      PORT: ${PORT:-3000}
+      PORT: 3000
       MCP_BASE_URL: ${MCP_BASE_URL:-http://localhost:3000}
       MCP_PATH: ${MCP_PATH:-/mcp}
       KEYCLOAK_BASE_URL: ${KEYCLOAK_BASE_URL:-http://localhost:8080}
@@ -13,7 +13,7 @@ services:
       MCP_AUDIENCE: ${MCP_AUDIENCE:-mcp-demo-resource}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
     ports:
-      - "${PORT:-3000}:${PORT:-3000}"
+      - "127.0.0.1:${PORT:-3000}:3000"
     depends_on:
       - keycloak
 

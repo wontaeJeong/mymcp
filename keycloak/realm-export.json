@@ -94,7 +94,9 @@
       "directAccessGrantsEnabled": false,
       "implicitFlowEnabled": false,
       "serviceAccountsEnabled": false,
-      "pkceCodeChallengeMethod": "S256",
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
       "redirectUris": [
         "http://127.0.0.1:*/*",
         "http://localhost:*/*"
