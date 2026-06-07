@@ -4,6 +4,8 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * 1'
 
 permissions:
   contents: read
@@ -16,9 +18,46 @@ env:
   GO_VERSION: '1.23.x'
 
 jobs:
-  go:
-    name: Go quality checks
+  workflow-lint:
+    name: Workflow lint
     runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run actionlint
+        uses: raven-actions/actionlint@v2
+
+  repository-hygiene:
+    name: Repository hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate JSON files
+        run: |
+          while IFS= read -r file; do
+            python -m json.tool "$file" >/dev/null
+          done < <(find . -path ./.git -prune -o -name '*.json' -print)
+
+      - name: Validate workflow YAML shape
+        run: |
+          ruby -e 'require "yaml"; data = YAML.load_file(".github/workflows/ci.yml"); jobs = data.fetch("jobs").keys.sort; expected = %w[codeql container go govulncheck integration repository-hygiene static-analysis workflow-lint]; abort("unexpected jobs: #{jobs.inspect}") unless jobs == expected'
+
+      - name: Verify no generated coverage artifact is committed
+        run: test ! -f coverage.out
+
+      - name: Verify Makefile targets are parseable
+        run: make -n build test docker-build docker-up docker-down >/dev/null
+
+  go:
+    name: Go quality checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -33,11 +72,13 @@ jobs:
         run: go mod download
 
       - name: Verify module files are tidy
+        shell: bash
         run: |
           go mod tidy
           git diff --exit-code -- go.mod go.sum
 
       - name: Verify formatting
+        shell: bash
         run: |
           unformatted=$(gofmt -l .)
           if [ -n "$unformatted" ]; then
@@ -49,8 +90,12 @@ jobs:
       - name: Vet packages
         run: go vet ./...
 
-      - name: Test with race detector and coverage
-        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+      - name: Test packages with coverage
+        run: go test -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Test packages with race detector
+        if: runner.os == 'Linux'
+        run: go test -race ./...
 
       - name: Build packages
         run: go build ./...
@@ -58,9 +103,28 @@ jobs:
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: go-coverage
+          name: go-coverage-${{ matrix.os }}
           path: coverage.out
           if-no-files-found: error
+
+  static-analysis:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run staticcheck
+        uses: dominikh/staticcheck-action@v1
+        with:
+          version: latest
+          install-go: false
 
   govulncheck:
     name: Vulnerability scan
@@ -81,12 +145,40 @@ jobs:
           go-version-input: ${{ env.GO_VERSION }}
           go-package: ./...
 
+  codeql:
+    name: CodeQL analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+
   container:
-    name: Container build
+    name: Container checks
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: error
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -94,10 +186,122 @@ jobs:
       - name: Validate Compose file
         run: docker compose -f deployments/docker-compose.yml config --quiet
 
-      - name: Build application image
+      - name: Build local application image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: mymcp:ci
+
+      - name: Scan local image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: mymcp:ci
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Verify multi-platform build
         uses: docker/build-push-action@v6
         with:
           context: .
           push: false
           load: false
-          tags: mymcp:ci
+          platforms: linux/amd64,linux/arm64
+          tags: mymcp:ci-multiarch
+
+  integration:
+    name: Local OAuth/MCP integration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install integration tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Start Keycloak
+        run: docker compose -f deployments/docker-compose.yml up -d keycloak
+
+      - name: Wait for Keycloak realm
+        run: |
+          for attempt in {1..90}; do
+            if curl -fsS http://localhost:8080/realms/mcp-demo/.well-known/openid-configuration >/dev/null; then
+              exit 0
+            fi
+            echo "Waiting for Keycloak realm import (${attempt}/90)..."
+            sleep 2
+          done
+          docker compose -f deployments/docker-compose.yml logs keycloak
+          exit 1
+
+      - name: Start MCP server
+        run: |
+          PORT=3000 \
+          MCP_BASE_URL=http://localhost:3000 \
+          KEYCLOAK_BASE_URL=http://localhost:8080 \
+          KEYCLOAK_ISSUER=http://localhost:8080/realms/mcp-demo \
+          KEYCLOAK_JWKS_URI=http://localhost:8080/realms/mcp-demo/protocol/openid-connect/certs \
+          MCP_AUDIENCE=mcp-demo-resource \
+          go run ./cmd/mymcp >mymcp.log 2>&1 &
+          echo $! >mymcp.pid
+          for attempt in {1..30}; do
+            if curl -fsS http://localhost:3000/.well-known/oauth-protected-resource >/dev/null; then
+              exit 0
+            fi
+            echo "Waiting for MCP server (${attempt}/30)..."
+            sleep 1
+          done
+          cat mymcp.log
+          exit 1
+
+      - name: Exercise protected MCP flow
+        run: |
+          challenge_headers=$(mktemp)
+          status=$(curl -sS -o /tmp/unauthenticated.out -D "$challenge_headers" -w '%{http_code}' http://localhost:3000/mcp)
+          test "$status" = 401
+          grep -i 'www-authenticate: Bearer' "$challenge_headers"
+
+          token=$(curl -fsS -X POST http://localhost:8080/realms/mcp-demo/protocol/openid-connect/token \
+            -H 'Content-Type: application/x-www-form-urlencoded' \
+            -d 'client_id=mcp-demo-cli' \
+            -d 'grant_type=password' \
+            -d 'username=alice' \
+            -d 'password=alice' \
+            -d 'scope=mcp:tools:read mcp:tools:execute' | jq -r .access_token)
+          test -n "$token"
+          test "$token" != null
+
+          curl -fsS http://localhost:3000/mcp \
+            -H "Authorization: Bearer $token" \
+            -H 'Content-Type: application/json' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | tee /tmp/tools-list.json
+          jq -e '.result.tools[] | select(.name == "whoami")' /tmp/tools-list.json >/dev/null
+
+          curl -fsS http://localhost:3000/mcp \
+            -H "Authorization: Bearer $token" \
+            -H 'Content-Type: application/json' \
+            -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"echo","arguments":{"message":"ci"}}}' | tee /tmp/echo.json
+          jq -e '.result.content[0].text | fromjson | .message == "ci"' /tmp/echo.json >/dev/null
+
+      - name: Show service logs on failure
+        if: failure()
+        run: |
+          cat mymcp.log || true
+          docker compose -f deployments/docker-compose.yml logs keycloak || true
+
+      - name: Stop services
+        if: always()
+        run: |
+          if [ -f mymcp.pid ]; then kill "$(cat mymcp.pid)" || true; fi
+          docker compose -f deployments/docker-compose.yml down -v
