@@ -91,6 +91,29 @@ make dev
 
 Keycloak starts at <http://localhost:8080>. The admin console account defaults to `admin` / `admin` for local development only.
 
+## Container build
+
+Build the MCP server image:
+
+```bash
+make docker-build
+```
+
+Run Keycloak and the MCP server together with Docker Compose:
+
+```bash
+cp .env.example .env
+make docker-up
+```
+
+The `mcp` Compose service publishes the app on `PORT`, defaulting to <http://localhost:3000>. It keeps the public Keycloak issuer as `http://localhost:8080/realms/mcp-demo` while using the Compose service name for JWKS retrieval inside the container.
+
+Stop the containerized stack:
+
+```bash
+make docker-down
+```
+
 ## Verify metadata
 
 ```bash
