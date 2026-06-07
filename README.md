@@ -166,7 +166,7 @@ TOKEN=$(curl -s -X POST http://localhost:8080/realms/mcp-demo/protocol/openid-co
   -d 'grant_type=password' \
   -d 'username=alice' \
   -d 'password=alice' \
-  -d 'scope=openid profile email mcp:tools:read mcp:tools:execute' | jq -r .access_token)
+  -d 'scope=mcp:tools:read mcp:tools:execute' | jq -r .access_token)
 ```
 
 Admin token:
@@ -178,7 +178,7 @@ ADMIN_TOKEN=$(curl -s -X POST http://localhost:8080/realms/mcp-demo/protocol/ope
   -d 'grant_type=password' \
   -d 'username=admin-user' \
   -d 'password=admin-user' \
-  -d 'scope=openid profile email mcp:tools:read mcp:tools:execute mcp:admin' | jq -r .access_token)
+  -d 'scope=mcp:tools:read mcp:tools:execute mcp:admin' | jq -r .access_token)
 ```
 
 The MCP server expects:
