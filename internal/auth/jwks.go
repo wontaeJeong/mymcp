@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"crypto/rsa"
@@ -47,7 +47,7 @@ func importRSAPublicKey(jwk JWK) (*rsa.PublicKey, error) {
 	return &rsa.PublicKey{N: new(big.Int).SetBytes(nBytes), E: e}, nil
 }
 
-func createStaticJwksResolver(jwks JWKS) JWKResolver {
+func CreateStaticJwksResolver(jwks JWKS) JWKResolver {
 	return func(header map[string]any) (*rsa.PublicKey, error) {
 		kid, _ := header["kid"].(string)
 		for _, candidate := range jwks.Keys {
@@ -59,7 +59,7 @@ func createStaticJwksResolver(jwks JWKS) JWKResolver {
 	}
 }
 
-func createRemoteJwksResolver(jwksURI string) JWKResolver {
+func CreateRemoteJwksResolver(jwksURI string) JWKResolver {
 	var (
 		mu    sync.Mutex
 		cache *JWKS
@@ -82,6 +82,6 @@ func createRemoteJwksResolver(jwksURI string) JWKResolver {
 			}
 			cache = &parsed
 		}
-		return createStaticJwksResolver(*cache)(header)
+		return CreateStaticJwksResolver(*cache)(header)
 	}
 }
