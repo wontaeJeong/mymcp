@@ -1,12 +1,8 @@
-package main
+package config
 
-import (
-	"os"
-	"strconv"
-	"strings"
-)
+import "strconv"
 
-type AppConfig struct {
+type Config struct {
 	Port        int
 	BaseURL     string
 	MCPPath     string
@@ -18,40 +14,9 @@ type AppConfig struct {
 	CORSOrigins []string
 }
 
-func trimTrailingSlash(value string) string {
-	return strings.TrimRight(value, "/")
-}
-
-func csv(value string) []string {
-	if value == "" {
-		return nil
-	}
-	parts := strings.Split(value, ",")
-	entries := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if trimmed := strings.TrimSpace(part); trimmed != "" {
-			entries = append(entries, trimmed)
-		}
-	}
-	return entries
-}
-
-func getenv(env map[string]string, key, fallback string) string {
-	if value, ok := env[key]; ok && value != "" {
-		return value
-	}
-	return fallback
-}
-
-func LoadConfig(env map[string]string) AppConfig {
+func Load(env map[string]string) Config {
 	if env == nil {
-		env = map[string]string{}
-		for _, entry := range os.Environ() {
-			key, value, ok := strings.Cut(entry, "=")
-			if ok {
-				env[key] = value
-			}
-		}
+		env = environ()
 	}
 
 	baseURL := trimTrailingSlash(getenv(env, "MCP_BASE_URL", "http://localhost:3000"))
@@ -63,7 +28,7 @@ func LoadConfig(env map[string]string) AppConfig {
 		port = 3000
 	}
 
-	return AppConfig{
+	return Config{
 		Port:        port,
 		BaseURL:     baseURL,
 		MCPPath:     getenv(env, "MCP_PATH", "/mcp"),
