@@ -1,6 +1,10 @@
+name: mymcp
+
 services:
   mcp:
-    build: .
+    build:
+      context: ..
+      dockerfile: Dockerfile
     profiles: ["app"]
     environment:
       PORT: 3000
