@@ -195,7 +195,7 @@ jobs:
           tags: mymcp:ci
 
       - name: Scan local image with Trivy
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: mymcp:ci
           format: table
