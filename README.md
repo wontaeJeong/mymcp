@@ -49,6 +49,7 @@ More detail is split into `docs/demo-script.md`, `docs/oauth.md`, `docs/mcp.md`,
 - `internal/policy`: scope and group policy decisions.
 - `internal/server`: HTTP routing, CORS, OAuth challenge responses, and MCP request dispatch.
 - `deployments`: local Docker Compose and Keycloak realm import resources.
+- `certs`: placeholder location for approved corporate CA certificates used during development, container builds, and runtime TLS trust.
 - `docs`: demo flow, OAuth/MCP notes, and production hardening notes.
 
 ## Environment variables
@@ -74,6 +75,9 @@ These values may appear in local documentation or client configuration:
 - `INTERNAL_OIDC_TOKEN_URL`
 - `INTERNAL_OIDC_USERINFO_URL`
 - `INTERNAL_OIDC_JWKS_URL`
+- `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` for development/build-only network access
+- `http_proxy`, `https_proxy`, and `no_proxy` lowercase equivalents for tools that require them
+- `INTERNAL_CA_CERT`, defaulting to `certs/internal-ca.crt` for local Make targets when the file exists
 
 ### Secret values
 
@@ -102,6 +106,8 @@ make install
 make dev
 ```
 
+For corporate-network development, set `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` in the shell or Make command line before running Make targets. If internal TLS inspection or private services require a corporate CA, place the approved public CA certificate at `certs/internal-ca.crt`; Make targets automatically set `SSL_CERT_FILE` when that file exists.
+
 Keycloak starts at <http://localhost:8080>. The admin console account defaults to `admin` / `admin` for local development only.
 
 ## Container build
@@ -111,6 +117,8 @@ Build the MCP server image:
 ```bash
 make docker-build
 ```
+
+The Docker build accepts `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` build arguments and copies `certs/` before dependency download so corporate proxies and CA certificates are available during image builds. The final scratch runtime image receives the generated CA bundle for internal TLS validation, but no proxy variables are set in the runtime container.
 
 Run Keycloak and the MCP server together with Docker Compose:
 

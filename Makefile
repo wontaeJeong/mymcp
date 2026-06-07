@@ -1,5 +1,10 @@
 COMPOSE_FILE := deployments/docker-compose.yml
 
+INTERNAL_CA_CERT ?= certs/internal-ca.crt
+CA_CERT_ENV = $(if $(wildcard $(INTERNAL_CA_CERT)),SSL_CERT_FILE=$(INTERNAL_CA_CERT),)
+PROXY_ENV = HTTP_PROXY="$(HTTP_PROXY)" HTTPS_PROXY="$(HTTPS_PROXY)" NO_PROXY="$(NO_PROXY)" http_proxy="$(http_proxy)" https_proxy="$(https_proxy)" no_proxy="$(no_proxy)"
+DOCKER_PROXY_BUILD_ARGS = --build-arg HTTP_PROXY="$(HTTP_PROXY)" --build-arg HTTPS_PROXY="$(HTTPS_PROXY)" --build-arg NO_PROXY="$(NO_PROXY)" --build-arg http_proxy="$(http_proxy)" --build-arg https_proxy="$(https_proxy)" --build-arg no_proxy="$(no_proxy)"
+
 .PHONY: up down dev build test install docker-build docker-up docker-down token-alice token-admin
 
 up:
@@ -9,19 +14,19 @@ down:
 	docker compose -f $(COMPOSE_FILE) down
 
 install:
-	go mod download
+	$(PROXY_ENV) $(CA_CERT_ENV) go mod download
 
 dev:
-	go run ./cmd/mymcp
+	$(PROXY_ENV) $(CA_CERT_ENV) go run ./cmd/mymcp
 
 build:
-	go build ./...
+	$(PROXY_ENV) $(CA_CERT_ENV) go build ./...
 
 test:
-	go test ./...
+	$(PROXY_ENV) $(CA_CERT_ENV) go test ./...
 
 docker-build:
-	docker build -t mymcp .
+	docker build $(DOCKER_PROXY_BUILD_ARGS) -t mymcp .
 
 docker-up:
 	docker compose -f $(COMPOSE_FILE) --profile app up -d --build
