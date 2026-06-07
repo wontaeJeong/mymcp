@@ -1,13 +1,13 @@
-package httpapi
+package server
 
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 
 	"mymcp/internal/auth"
 	"mymcp/internal/config"
 	"mymcp/internal/mcp"
-	"mymcp/internal/metadata"
 )
 
 func writeJSON(w http.ResponseWriter, status int, body any, headers map[string]string) {
@@ -24,13 +24,10 @@ func addCORS(w http.ResponseWriter, r *http.Request, cfg config.Config) {
 		return
 	}
 	origin := r.Header.Get("Origin")
-	for _, allowed := range cfg.CORSOrigins {
-		if origin == allowed {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-			return
-		}
+	if slices.Contains(cfg.CORSOrigins, origin) {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 	}
 }
 
@@ -46,12 +43,12 @@ func NewHandler(cfg config.Config, resolveJWK auth.JWKResolver) http.Handler {
 		}
 
 		if r.Method == http.MethodGet && (r.URL.Path == "/.well-known/oauth-protected-resource" || r.URL.Path == "/.well-known/oauth-protected-resource/mcp") {
-			writeJSON(w, http.StatusOK, metadata.ProtectedResource(cfg), nil)
+			writeJSON(w, http.StatusOK, mcp.ProtectedResource(cfg), nil)
 			return
 		}
 
 		if r.URL.Path == cfg.MCPPath {
-			authResult := auth.AuthenticateRequest(r, cfg, resolveJWK)
+			authResult := auth.AuthenticateRequest(r, cfg, resolveJWK, mcp.WWWAuthenticateHeader(cfg))
 			if !authResult.OK {
 				writeJSON(w, authResult.Status, authResult.Body, authResult.Headers)
 				return

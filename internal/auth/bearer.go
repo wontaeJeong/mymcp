@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"mymcp/internal/config"
-	"mymcp/internal/metadata"
 )
 
 func BearerTokenFromHeader(header string) string {
@@ -16,11 +15,10 @@ func BearerTokenFromHeader(header string) string {
 	return ""
 }
 
-func AuthenticateRequest(r *http.Request, cfg config.Config, resolveJWK JWKResolver) AuthResult {
+func AuthenticateRequest(r *http.Request, cfg config.Config, resolveJWK JWKResolver, challenge string) AuthResult {
 	if resolveJWK == nil {
 		resolveJWK = CreateRemoteJwksResolver(cfg.JWKSURI)
 	}
-	challenge := metadata.WWWAuthenticateHeader(cfg)
 	token := BearerTokenFromHeader(r.Header.Get("Authorization"))
 	if token == "" {
 		return AuthResult{OK: false, Status: http.StatusUnauthorized, Headers: map[string]string{"WWW-Authenticate": challenge}, Body: map[string]string{"error": "missing_bearer_token"}}

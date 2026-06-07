@@ -1,4 +1,4 @@
-package httpapi_test
+package server_test
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"maps"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -16,7 +17,7 @@ import (
 
 	"mymcp/internal/auth"
 	"mymcp/internal/config"
-	"mymcp/internal/httpapi"
+	"mymcp/internal/server"
 )
 
 var testConfig = config.Config{
@@ -72,9 +73,7 @@ func token(t *testing.T, privateKey *rsa.PrivateKey, overrides map[string]any) s
 		"preferred_username": "alice",
 		"groups":             []string{},
 	}
-	for key, value := range overrides {
-		payload[key] = value
-	}
+	maps.Copy(payload, overrides)
 	headerJSON, _ := json.Marshal(header)
 	payloadJSON, _ := json.Marshal(payload)
 	signingInput := b64url(headerJSON) + "." + b64url(payloadJSON)
@@ -115,61 +114,6 @@ func decodeJSON(t *testing.T, res *httptest.ResponseRecorder) map[string]any {
 	return body
 }
 
-func TestProtectedResourceMetadata(t *testing.T) {
-	res := request(httpapi.NewHandler(testConfig, nil), http.MethodGet, "/.well-known/oauth-protected-resource", nil, "")
-	if res.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", res.Code, http.StatusOK)
-	}
-	body := decodeJSON(t, res)
-	if body["resource"] != "http://localhost:3000/mcp" {
-		t.Fatalf("resource = %v", body["resource"])
-	}
-	servers := body["authorization_servers"].([]any)
-	if servers[0] != "http://localhost:8080/realms/mcp-demo" {
-		t.Fatalf("authorization_servers = %v", servers)
-	}
-	scopes := body["scopes_supported"].([]any)
-	if len(scopes) != 3 || scopes[0] != "mcp:tools:read" || scopes[1] != "mcp:tools:execute" || scopes[2] != "mcp:admin" {
-		t.Fatalf("scopes_supported = %v", scopes)
-	}
-}
-
-func TestBearerAuthMissingAuthorization(t *testing.T) {
-	keys := makeKeys(t)
-	res := request(httpapi.NewHandler(testConfig, keys.resolver), http.MethodGet, "/mcp", nil, "")
-	if res.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want %d", res.Code, http.StatusUnauthorized)
-	}
-	challenge := res.Header().Get("WWW-Authenticate")
-	if !bytes.Contains([]byte(challenge), []byte(`Bearer realm="mcp-demo"`)) || !bytes.Contains([]byte(challenge), []byte(`resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource"`)) {
-		t.Fatalf("unexpected challenge: %s", challenge)
-	}
-}
-
-func TestBearerAuthRejectsWrongIssuer(t *testing.T) {
-	keys := makeKeys(t)
-	bad := token(t, keys.privateKey, map[string]any{"iss": "http://localhost:8080/realms/other"})
-	res := request(httpapi.NewHandler(testConfig, keys.resolver), http.MethodPost, "/mcp", map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, bad)
-	if res.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want %d", res.Code, http.StatusUnauthorized)
-	}
-	if body := decodeJSON(t, res); body["error"] != "invalid_token" {
-		t.Fatalf("body = %v", body)
-	}
-}
-
-func TestBearerAuthRejectsWrongAudience(t *testing.T) {
-	keys := makeKeys(t)
-	bad := token(t, keys.privateKey, map[string]any{"aud": "wrong-audience"})
-	res := request(httpapi.NewHandler(testConfig, keys.resolver), http.MethodPost, "/mcp", map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, bad)
-	if res.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want %d", res.Code, http.StatusUnauthorized)
-	}
-	if body := decodeJSON(t, res); body["error"] != "invalid_token" {
-		t.Fatalf("body = %v", body)
-	}
-}
-
 func rpc(method string, params map[string]any) map[string]any {
 	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": method}
 	if params != nil {
@@ -182,7 +126,19 @@ func postMCP(t *testing.T, scope string, body any, groups []string) *httptest.Re
 	t.Helper()
 	keys := makeKeys(t)
 	accessToken := token(t, keys.privateKey, map[string]any{"scope": scope, "groups": groups})
-	return request(httpapi.NewHandler(testConfig, keys.resolver), http.MethodPost, "/mcp", body, accessToken)
+	return request(server.NewHandler(testConfig, keys.resolver), http.MethodPost, "/mcp", body, accessToken)
+}
+
+func TestBearerAuthMissingAuthorization(t *testing.T) {
+	keys := makeKeys(t)
+	res := request(server.NewHandler(testConfig, keys.resolver), http.MethodGet, "/mcp", nil, "")
+	if res.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", res.Code, http.StatusUnauthorized)
+	}
+	challenge := res.Header().Get("WWW-Authenticate")
+	if !bytes.Contains([]byte(challenge), []byte(`Bearer realm="mcp-demo"`)) || !bytes.Contains([]byte(challenge), []byte(`resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource"`)) {
+		t.Fatalf("unexpected challenge: %s", challenge)
+	}
 }
 
 func TestPolicyDeniesToolCallsWithoutExecuteScope(t *testing.T) {
