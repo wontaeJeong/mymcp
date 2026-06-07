@@ -38,7 +38,18 @@ For the local demo, upstream OIDC credentials are optional. Keycloak imports loc
   - `admin_status` additionally requires `mcp:admin` scope or `admin` group.
 - Go unit tests for metadata, authentication, JWT rejection, and policy enforcement.
 
-More detail is split into `docs/oauth.md`, `docs/mcp.md`, and `docs/production.md`.
+More detail is split into `docs/demo-script.md`, `docs/oauth.md`, `docs/mcp.md`, and `docs/production.md`.
+
+## Project structure
+
+- `cmd/mymcp`: server entrypoint for `go run ./cmd/mymcp`.
+- `internal/config`: environment-backed runtime configuration.
+- `internal/auth`: bearer token parsing, JWT validation, JWKS resolution, and authenticated request context.
+- `internal/mcp`: OAuth protected-resource metadata, JSON-RPC protocol handling, and demo MCP tools.
+- `internal/policy`: scope and group policy decisions.
+- `internal/server`: HTTP routing, CORS, OAuth challenge responses, and MCP request dispatch.
+- `deployments`: local Docker Compose and Keycloak realm import resources.
+- `docs`: demo flow, OAuth/MCP notes, and production hardening notes.
 
 ## Environment variables
 
