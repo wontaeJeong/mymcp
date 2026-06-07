@@ -1,4 +1,4 @@
-package main
+package httpapi_test
 
 import (
 	"bytes"
@@ -13,9 +13,13 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"mymcp/internal/auth"
+	"mymcp/internal/config"
+	"mymcp/internal/httpapi"
 )
 
-var testConfig = AppConfig{
+var testConfig = config.Config{
 	Port:        3000,
 	BaseURL:     "http://localhost:3000",
 	MCPPath:     "/mcp",
@@ -29,7 +33,7 @@ var testConfig = AppConfig{
 
 type testKeys struct {
 	privateKey *rsa.PrivateKey
-	resolver   JWKResolver
+	resolver   auth.JWKResolver
 }
 
 func b64url(input []byte) string {
@@ -43,14 +47,14 @@ func makeKeys(t *testing.T) testKeys {
 		t.Fatal(err)
 	}
 	exponent := big.NewInt(int64(privateKey.PublicKey.E)).Bytes()
-	jwk := JWK{
+	jwk := auth.JWK{
 		Kid: "test-key",
 		Alg: "RS256",
 		Kty: "RSA",
 		N:   b64url(privateKey.PublicKey.N.Bytes()),
 		E:   b64url(exponent),
 	}
-	return testKeys{privateKey: privateKey, resolver: createStaticJwksResolver(JWKS{Keys: []JWK{jwk}})}
+	return testKeys{privateKey: privateKey, resolver: auth.CreateStaticJwksResolver(auth.JWKS{Keys: []auth.JWK{jwk}})}
 }
 
 func token(t *testing.T, privateKey *rsa.PrivateKey, overrides map[string]any) string {
@@ -112,7 +116,7 @@ func decodeJSON(t *testing.T, res *httptest.ResponseRecorder) map[string]any {
 }
 
 func TestProtectedResourceMetadata(t *testing.T) {
-	res := request(CreateHandler(testConfig, nil), http.MethodGet, "/.well-known/oauth-protected-resource", nil, "")
+	res := request(httpapi.NewHandler(testConfig, nil), http.MethodGet, "/.well-known/oauth-protected-resource", nil, "")
 	if res.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", res.Code, http.StatusOK)
 	}
@@ -132,7 +136,7 @@ func TestProtectedResourceMetadata(t *testing.T) {
 
 func TestBearerAuthMissingAuthorization(t *testing.T) {
 	keys := makeKeys(t)
-	res := request(CreateHandler(testConfig, keys.resolver), http.MethodGet, "/mcp", nil, "")
+	res := request(httpapi.NewHandler(testConfig, keys.resolver), http.MethodGet, "/mcp", nil, "")
 	if res.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d", res.Code, http.StatusUnauthorized)
 	}
@@ -145,7 +149,7 @@ func TestBearerAuthMissingAuthorization(t *testing.T) {
 func TestBearerAuthRejectsWrongIssuer(t *testing.T) {
 	keys := makeKeys(t)
 	bad := token(t, keys.privateKey, map[string]any{"iss": "http://localhost:8080/realms/other"})
-	res := request(CreateHandler(testConfig, keys.resolver), http.MethodPost, "/mcp", map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, bad)
+	res := request(httpapi.NewHandler(testConfig, keys.resolver), http.MethodPost, "/mcp", map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, bad)
 	if res.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d", res.Code, http.StatusUnauthorized)
 	}
@@ -157,7 +161,7 @@ func TestBearerAuthRejectsWrongIssuer(t *testing.T) {
 func TestBearerAuthRejectsWrongAudience(t *testing.T) {
 	keys := makeKeys(t)
 	bad := token(t, keys.privateKey, map[string]any{"aud": "wrong-audience"})
-	res := request(CreateHandler(testConfig, keys.resolver), http.MethodPost, "/mcp", map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, bad)
+	res := request(httpapi.NewHandler(testConfig, keys.resolver), http.MethodPost, "/mcp", map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, bad)
 	if res.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d", res.Code, http.StatusUnauthorized)
 	}
@@ -178,7 +182,7 @@ func postMCP(t *testing.T, scope string, body any, groups []string) *httptest.Re
 	t.Helper()
 	keys := makeKeys(t)
 	accessToken := token(t, keys.privateKey, map[string]any{"scope": scope, "groups": groups})
-	return request(CreateHandler(testConfig, keys.resolver), http.MethodPost, "/mcp", body, accessToken)
+	return request(httpapi.NewHandler(testConfig, keys.resolver), http.MethodPost, "/mcp", body, accessToken)
 }
 
 func TestPolicyDeniesToolCallsWithoutExecuteScope(t *testing.T) {
