@@ -38,6 +38,8 @@ For the local demo, upstream OIDC credentials are optional. Keycloak imports loc
   - `admin_status` additionally requires `mcp:admin` scope or `admin` group.
 - Go unit tests for metadata, authentication, JWT rejection, and policy enforcement.
 
+More detail is split into `docs/oauth.md`, `docs/mcp.md`, and `docs/production.md`.
+
 ## Environment variables
 
 `.env.example` is split into two sections:
@@ -76,9 +78,9 @@ The variable names are stable and intentionally descriptive; only the grouping i
 
 ```bash
 cp .env.example .env
-docker compose up -d
+docker compose -f deployments/docker-compose.yml up -d
 go mod download
-go run .
+go run ./cmd/mymcp
 ```
 
 Equivalent Make targets:
@@ -300,8 +302,8 @@ The realm import includes a disabled Keycloak broker named `internal-oidc`. To c
 4. Restart Keycloak:
 
    ```bash
-   docker compose down
-   docker compose up -d
+   docker compose -f deployments/docker-compose.yml down
+   docker compose -f deployments/docker-compose.yml up -d
    ```
 
 5. In the Keycloak admin console, go to **Identity providers → internal-oidc**, verify endpoints and credentials, and enable the provider.

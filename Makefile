@@ -1,16 +1,18 @@
+COMPOSE_FILE := deployments/docker-compose.yml
+
 .PHONY: up down dev build test install docker-build docker-up docker-down token-alice token-admin
 
 up:
-	docker compose up -d
+	docker compose -f $(COMPOSE_FILE) up -d
 
 down:
-	docker compose down
+	docker compose -f $(COMPOSE_FILE) down
 
 install:
 	go mod download
 
 dev:
-	go run .
+	go run ./cmd/mymcp
 
 build:
 	go build ./...
@@ -22,10 +24,10 @@ docker-build:
 	docker build -t mymcp .
 
 docker-up:
-	docker compose --profile app up -d --build
+	docker compose -f $(COMPOSE_FILE) --profile app up -d --build
 
 docker-down:
-	docker compose --profile app down
+	docker compose -f $(COMPOSE_FILE) --profile app down
 
 token-alice:
 	curl -s -X POST http://localhost:8080/realms/mcp-demo/protocol/openid-connect/token \
